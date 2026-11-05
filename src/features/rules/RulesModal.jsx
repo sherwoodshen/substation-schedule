@@ -1,6 +1,6 @@
 import Modal from '../../components/Modal.jsx';
 import { stations } from '../../data/stations.mjs';
-import { restrictedEquipmentByStation } from '../../services/ScheduleGenerator.mjs';
+import { restrictedEquipmentByStation } from '../../data/restrictedEquipment.mjs';
 
 function ReplacementRules() {
   return (
@@ -18,17 +18,16 @@ function ReplacementRules() {
           <h3 className="font-semibold text-slate-950">GIS 设备与测温豁免</h3>
           <ul className="mt-1 list-disc space-y-1 pl-5 marker:text-slate-500">
             <li><strong>判定条件</strong> · 保电设备中不包含“主变”字样即默认为 GIS 设备。</li>
-            <li><strong>测温豁免</strong> · 机器替代期间，针对 GIS 设备，不开展智巡红外测温。若为非 GIS 设备（含主变），机器巡视需正常测温。</li>
+            <li><strong>测温豁免</strong> · 机器替代期间，针对 GIS 设备不开展红外测温（测温次数设为0）。但若保电设备涉及小营、马台街、新街口等 11 个变电站的主变设备，因具备机器红外测温功能，机器巡视时需正常计算测温次数。</li>
             <li><strong>人工强制测温</strong> · 只要切换为人工特巡，无论设备类型，必须正常开展红外测温。</li>
           </ul>
         </li>
         <li>
           <h3 className="font-semibold text-slate-950">设备动态受限拦截</h3>
           <ul className="mt-1 list-disc space-y-1 pl-5 marker:text-slate-500">
-            <li><strong>宁海路（220kV）</strong> · 涉及“主变”不可替代，必须人工。</li>
             <li>
-              <strong>新街口、云南路、萨家湾（110kV）</strong> · 本站设备说明包含下列任一受限特征码时，必须人工巡视并正常测温。匹配以核心运行编号为准，未命中时可按后续规则安排机器巡视。
-              <p className="mt-1 text-xs text-slate-600">英文字母统一转大写，兼容全半角、空格、“千伏/kV”及罗马数字写法。云南路码龙线受限特征码为 7H3。</p>
+              <strong>按本站受限设备清单判定</strong> · 本站设备说明包含下列任一受限特征码时，必须人工巡视并正常测温。未命中时可按后续规则安排机器巡视。
+              <p className="mt-1 text-xs text-slate-600">英文字母统一转大写，兼容全半角、空格、“千伏/kV”及罗马数字写法。</p>
               <div className="mt-2 space-y-2">
                 {Array.from(restrictedEquipmentByStation, ([name, features]) => (
                   <section key={name} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
@@ -43,9 +42,6 @@ function ReplacementRules() {
           </ul>
         </li>
       </ol>
-      <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
-        当前版本生成的机器巡视草稿统一为 0 次测温。
-      </p>
     </>
   );
 }

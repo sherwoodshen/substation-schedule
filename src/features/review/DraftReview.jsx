@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { stations } from '../../data/stations.mjs';
-import { canUseRobotForSpecial } from '../../services/ScheduleGenerator.mjs';
+import { canRobotTemp, canUseRobotForSpecial } from '../../services/ScheduleGenerator.mjs';
 import { formatTaskName } from '../../services/taskName.mjs';
 
 const stationByName = new Map(stations.map(station => [station.name, station]));
@@ -11,6 +11,9 @@ export default function DraftReview({ draft, onSaveRow, onBack, onConfirm, savin
   const [error, setError] = useState('');
   const firstRow = draft[0];
   const taskName = firstRow ? formatTaskName(firstRow) : '';
+  const editingRow = edit === null ? null : draft[edit.index];
+  const robotTemperature = editingRow && canRobotTemp(editingRow.stationName, editingRow.equipment)
+    ? editingRow.inspectionCount : 0;
 
   function startEdit(row, index) {
     setEdit({
@@ -26,7 +29,7 @@ export default function DraftReview({ draft, onSaveRow, onBack, onConfirm, savin
   }
 
   function saveEdit() {
-    const temperatureCount = edit.method === 'robot' ? 0 : Number(edit.manualTemperature);
+    const temperatureCount = edit.method === 'robot' ? robotTemperature : Number(edit.manualTemperature);
     if (edit.method === 'manual' && (
       edit.manualTemperature.trim() === '' || !Number.isSafeInteger(temperatureCount) || temperatureCount < 0
     )) {
@@ -93,7 +96,7 @@ export default function DraftReview({ draft, onSaveRow, onBack, onConfirm, savin
                     {editing ? (
                       <input className="control w-20" type="number" min="0" step="1" aria-label="测温次数"
                         aria-invalid={Boolean(error)} aria-describedby={error ? 'temperature-error' : undefined}
-                        disabled={edit.method === 'robot'} value={edit.method === 'robot' ? '0' : edit.manualTemperature}
+                        disabled={edit.method === 'robot'} value={edit.method === 'robot' ? robotTemperature : edit.manualTemperature}
                         onChange={event => {
                           setEdit({ ...edit, manualTemperature: event.target.value });
                           setError('');

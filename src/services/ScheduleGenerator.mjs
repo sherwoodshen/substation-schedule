@@ -1,5 +1,9 @@
 import { stations } from '../data/stations.mjs';
+import { restrictedEquipmentByStation } from '../data/restrictedEquipment.mjs';
+import { robotTempCapableEquipment } from '../data/robotTempCapable.mjs';
 import { splitEquipmentByStation } from './splitEquipmentByStation.mjs';
+
+export { restrictedEquipmentByStation };
 
 const DAY_MS = 86_400_000;
 const riskIntervals = new Map([
@@ -7,21 +11,6 @@ const riskIntervals = new Map([
   ['110kV', 3],
   ['35kV', 3],
 ]);
-/** 三站专属受限特征码，匹配时使用标准化后的子串包含规则。 */
-export const restrictedEquipmentByStation = new Map([
-  ['新街口', [
-    '110KVⅠ段', '110KVI段', '110KVⅡ段', '110KVII段', '110KV一段', '110KV二段',
-    '710', '793', '794',
-  ]],
-  ['云南路', [
-    '701', '702', '7N9', '7NA', '796', '7H3',
-  ]],
-  ['萨家湾', [
-    '110KVⅠ段', '110KVI段', '110KVⅡ段', '110KVII段', '110KV一段', '110KV二段',
-    '710', '701', '702', '737', '738', '775',
-  ]],
-]);
-
 /** 统一大写、全半角、罗马数字、电压单位、空白和“号/#”写法。 */
 export function normalizeEquipmentText(text = '') {
   return (text ?? '')
@@ -41,8 +30,13 @@ export function findRestrictedEquipment(stationName, equipmentText = '') {
 
 export function canUseRobotForSpecial(station, equipmentText = '') {
   if (station?.canRobot !== true) return false;
-  if (station.name === '宁海路') return !equipmentText.includes('主变');
   return findRestrictedEquipment(station.name, equipmentText) === null;
+}
+
+export function canRobotTemp(stationName, equipmentText = '') {
+  const normalizedText = normalizeEquipmentText(equipmentText);
+  const capableFeatures = robotTempCapableEquipment.get(stationName) ?? [];
+  return capableFeatures.some(feature => normalizedText.includes(normalizeEquipmentText(feature)));
 }
 
 function parseDate(value, label) {
@@ -149,7 +143,7 @@ export function generateSchedule(form, stationLedger = stations) {
         level,
         method,
         inspectionCount,
-        temperatureCount: method === 'robot' ? 0 : inspectionCount,
+        temperatureCount: method === 'manual' || canRobotTemp(station.name, equipment) ? inspectionCount : 0,
         equipment,
         isPreStart,
       });

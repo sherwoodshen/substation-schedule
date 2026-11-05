@@ -1,19 +1,19 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { stations } from '../src/data/stations.mjs';
+import { restrictedEquipmentByStation } from '../src/data/restrictedEquipment.mjs';
 import {
   canUseRobotForSpecial,
   findRestrictedEquipment,
   generateSchedule,
   normalizeEquipmentText,
-  restrictedEquipmentByStation,
 } from '../src/services/ScheduleGenerator.mjs';
 
 const stationByName = new Map(stations.map(station => [station.name, station]));
 
-test('三站全部受限特征码兼容大小写、罗马数字和千伏单位', () => {
+test('配置库全部受限特征码兼容大小写、罗马数字和千伏单位', () => {
   assert.deepEqual(Array.from(restrictedEquipmentByStation, ([name, features]) => [name, features.length]), [
-    ['新街口', 9], ['云南路', 6], ['萨家湾', 12],
+    ['宁海路', 1], ['新街口', 9], ['云南路', 6], ['萨家湾', 12],
   ]);
 
   for (const [name, features] of restrictedEquipmentByStation) {
@@ -35,13 +35,29 @@ test('三站全部受限特征码兼容大小写、罗马数字和千伏单位',
   assert.equal(normalizeEquipmentText('１１０ｋｖ Ⅱ段母线、１号主变'), '110KVII段母线、#1主变');
 });
 
-test('中文错别字不影响编号匹配，7H3 按子串包含规则拦截', () => {
+test('中文错别字不影响编号匹配，云南路使用配置中的 7H31', () => {
   assert.equal(findRestrictedEquipment('云南路', '摩云796'), '796');
   assert.equal(findRestrictedEquipment('云南路', '宁芸7n9'), '7N9');
-  assert.equal(findRestrictedEquipment('云南路', '码龙1号线7h3间隔'), '7H3');
-  assert.equal(findRestrictedEquipment('云南路', '码龙1号线7H31间隔'), '7H3');
+  assert.equal(findRestrictedEquipment('云南路', '码龙1号线7h31间隔'), '7H31');
+  assert.equal(findRestrictedEquipment('云南路', '码龙1号线7H3间隔'), null);
   assert.equal(findRestrictedEquipment('云南路', '11号主变变一侧701间隔'), '701');
-  assert.equal(restrictedEquipmentByStation.get('云南路').includes('7H31'), false);
+  assert.equal(restrictedEquipmentByStation.get('云南路').includes('7H31'), true);
+});
+
+test('宁海路统一读取配置，添加和删除特征码即可改变拦截结果', () => {
+  const station = stationByName.get('宁海路');
+  const original = restrictedEquipmentByStation.get('宁海路');
+  assert.equal(findRestrictedEquipment('宁海路', '宁海路1号主变'), '主变');
+  assert.equal(canUseRobotForSpecial(station, '宁海路1号主 变'), false);
+  assert.equal(canUseRobotForSpecial(station, '宁海路备用母线'), true);
+  try {
+    restrictedEquipmentByStation.set('宁海路', [...original, '备用母线']);
+    assert.equal(canUseRobotForSpecial(station, '宁海路备用母线'), false);
+    restrictedEquipmentByStation.set('宁海路', []);
+    assert.equal(canUseRobotForSpecial(station, '宁海路1号主变'), true);
+  } finally {
+    restrictedEquipmentByStation.set('宁海路', original);
+  }
 });
 
 test('普通 110kV 设备、其他站的专属编号及未列入编号不会误拦截', () => {
