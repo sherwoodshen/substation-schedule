@@ -1,0 +1,53 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    @apply min-h-screen bg-slate-50 text-slate-950 antialiased;
+  }
+
+  button:enabled {
+    @apply cursor-pointer;
+  }
+}
+
+@layer components {
+  .panel {
+    @apply overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm;
+  }
+
+  .panel-footer {
+    @apply flex flex-wrap items-center gap-3 border-t border-slate-200 bg-slate-50/70 p-4 sm:px-7;
+  }
+
+  .field-label {
+    @apply text-sm font-medium text-slate-800;
+  }
+
+  .control {
+    @apply min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm leading-6 outline-none placeholder:text-slate-500 focus:border-teal-700 focus:ring-2 focus:ring-teal-100 disabled:bg-slate-100 disabled:text-slate-600;
+  }
+
+  .choice {
+    @apply flex min-h-10 cursor-pointer flex-wrap items-center gap-2 rounded-lg border border-slate-200 px-2.5 py-2 text-sm hover:bg-slate-50 has-checked:border-teal-500 has-checked:bg-teal-50 has-focus-visible:outline-2 has-focus-visible:outline-teal-700;
+  }
+
+  .primary-button, .secondary-button, .row-button {
+    @apply rounded-lg text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .primary-button {
+    @apply bg-teal-700 px-4 py-2.5 text-white enabled:hover:bg-teal-800;
+  }
+
+  .secondary-button {
+    @apply border border-slate-300 bg-white px-4 py-2.5 text-slate-700 enabled:hover:bg-slate-100;
+  }
+
+  .row-button {
+    @apply px-2 py-1.5 text-teal-800 enabled:hover:bg-teal-100;
+  }
+
+  .review-table th, .review-table td {
+    @apply px-4 py-3 align-middle;
+  }
+}
