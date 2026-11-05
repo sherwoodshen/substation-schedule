@@ -1,0 +1,16 @@
+export const stations = [
+  { name: '宁海路', voltage: '220kV', canRobot: true, canReplaceSpecial: false },
+  { name: '新街口', voltage: '110kV', canRobot: true, canReplaceSpecial: false },
+  { name: '云南路', voltage: '110kV', canRobot: true, canReplaceSpecial: false },
+  { name: '萨家湾', voltage: '110kV', canRobot: true, canReplaceSpecial: false },
+  { name: '鼓楼', voltage: '110kV', canRobot: false, canReplaceSpecial: false },
+  { name: '虎踞', voltage: '110kV', canRobot: false, canReplaceSpecial: false },
+  { name: '和会街', voltage: '110kV', canRobot: false, canReplaceSpecial: false },
+  { name: '龙江', voltage: '110kV', canRobot: false, canReplaceSpecial: false },
+  { name: '厚载巷', voltage: '110kV', canRobot: false, canReplaceSpecial: false },
+  { name: '中保', voltage: '35kV', canRobot: false, canReplaceSpecial: false },
+  { name: '小营', voltage: '110kV', canRobot: true, canReplaceSpecial: true },
+  { name: '上海路', voltage: '110kV', canRobot: true, canReplaceSpecial: true },
+  { name: '古平岗', voltage: '110kV', canRobot: true, canReplaceSpecial: true },
+  { name: '长江路', voltage: '110kV', canRobot: true, canReplaceSpecial: true },
+];
