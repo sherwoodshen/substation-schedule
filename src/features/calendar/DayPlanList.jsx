@@ -1,28 +1,51 @@
+import { useState } from 'react';
 import { formatTaskName } from '../../services/taskName.mjs';
 import { cleanEquipmentText } from '../../services/equipmentDisplay.mjs';
+import { deletePlanById } from '../../storage/planRepository.js';
 
-const columns = ['日期', '变电站', '保电任务', '保电设备', '巡视记录', '测温记录'];
+const columns = ['日期', '变电站', '保电任务', '保电设备', '巡视记录', '测温记录', '操作'];
 
-export default function DayPlanList({ date, plans }) {
+export default function DayPlanList({ date, plans, onPlanUpdated }) {
+  const [deletedIds, setDeletedIds] = useState(new Set());
+  const [deletingId, setDeletingId] = useState(null);
+  const [error, setError] = useState('');
+  const visiblePlans = plans.filter(row => !deletedIds.has(row.id));
+
+  async function handleDelete(id) {
+    if (deletingId !== null || !window.confirm('确认删除该条巡视计划吗？')) return;
+    setDeletingId(id);
+    setError('');
+    try {
+      await deletePlanById(id);
+      setDeletedIds(current => new Set(current).add(id));
+      onPlanUpdated?.(id);
+    } catch {
+      setError('删除失败，请重试。');
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   return (
     <div className="p-4 sm:p-6">
       <p className="mb-4 flex items-center justify-between gap-2 text-sm text-slate-600">
         <time dateTime={date} className="font-semibold tabular-nums text-slate-900">{date}</time>
-        <span>{plans.length} 条计划</span>
+        <span aria-live="polite">{visiblePlans.length} 条计划</span>
       </p>
+      {error && <p role="alert" className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
       <p className="mb-2 text-xs text-slate-500 sm:hidden">表格可左右滑动查看，计划较多时可在表内上下滚动。</p>
       <div role="region" aria-label="当天巡视计划表格" tabIndex={0}
         className="max-h-[min(60dvh,32rem)] overflow-auto rounded-xl border border-slate-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700">
-        <table className="review-table w-full min-w-[56rem] text-left text-sm">
-          <caption className="sr-only">{date} 特殊巡视计划明细，共 {plans.length} 条</caption>
+        <table className="review-table w-full min-w-[60rem] text-left text-sm">
+          <caption className="sr-only">{date} 特殊巡视计划明细，共 {visiblePlans.length} 条</caption>
           <thead className="sticky top-0 z-1 border-b border-slate-200 bg-slate-50 text-slate-600 shadow-[0_1px_0_var(--color-slate-200)]">
             <tr>{columns.map(column => <th key={column} scope="col" className="whitespace-nowrap font-medium">{column}</th>)}</tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {plans.length === 0 && (
-              <tr><td colSpan={6} className="text-center text-slate-600">当天暂无已确认的特殊巡视计划。</td></tr>
+            {visiblePlans.length === 0 && (
+              <tr><td colSpan={7} className="text-center text-slate-600">当天暂无已确认的特殊巡视计划。</td></tr>
             )}
-            {plans.map(row => (
+            {visiblePlans.map(row => (
               <tr key={row.id} className="hover:bg-slate-50/80">
                 <td className="whitespace-nowrap tabular-nums">
                   <time dateTime={date}>{date}</time>
@@ -37,6 +60,13 @@ export default function DayPlanList({ date, plans }) {
                   {row.method === 'robot' ? '机器' : '人工'} {row.inspectionCount} 次
                 </td>
                 <td className="whitespace-nowrap tabular-nums text-slate-700">测温 {row.temperatureCount} 次</td>
+                <td className="whitespace-nowrap">
+                  <button type="button" disabled={deletingId !== null} onClick={() => handleDelete(row.id)}
+                    aria-label={`删除 ${date} ${row.stationName} ${formatTaskName(row)}`}
+                    className="rounded-md px-2 py-1.5 font-medium text-red-600 enabled:cursor-pointer enabled:hover:bg-red-50 enabled:hover:text-red-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700 disabled:cursor-not-allowed disabled:opacity-50">
+                    {deletingId === row.id ? '删除中…' : '删除'}
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>

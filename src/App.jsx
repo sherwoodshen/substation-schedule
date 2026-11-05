@@ -7,6 +7,7 @@ import TaskForm from './features/intake/TaskForm.jsx';
 import DraftReview from './features/review/DraftReview.jsx';
 import RulesModal, { ruleTopics } from './features/rules/RulesModal.jsx';
 import ExportModal from './features/export/ExportModal.jsx';
+import DataBackupActions from './features/backup/DataBackupActions.jsx';
 import { generateSchedule } from './services/ScheduleGenerator.mjs';
 import { savePlans, watchPlans } from './storage/planRepository.js';
 
@@ -79,6 +80,11 @@ export default function App() {
     setDraft(rows => rows.map((row, rowIndex) => rowIndex === index ? { ...row, ...changes } : row));
   }
 
+  function handlePlanUpdated(id) {
+    setPlans(current => current.filter(row => row.id !== id));
+    setConfirmedCount(0);
+  }
+
   async function handleConfirm() {
     if (saving) return;
     setSaving(true);
@@ -100,8 +106,8 @@ export default function App() {
     <main className="mx-auto max-w-7xl px-3 pt-7 pb-12 sm:px-8 sm:pt-12">
       <header className="mb-6 flex flex-wrap items-end justify-between gap-4 sm:mb-9">
         <div>
-          <p className="mb-2 text-sm font-semibold text-teal-800">变电运维 · 特殊巡视</p>
-          <h1 className="text-2xl font-semibold tracking-tight sm:text-4xl">每日巡视排班</h1>
+          <p className="mb-2 text-sm font-semibold text-teal-800">小营变电运维班</p>
+          <h1 className="text-2xl font-semibold tracking-tight sm:text-4xl">每日特殊巡视计划表</h1>
           <p className="mt-2 text-sm text-slate-600">按日查看已确认的特殊巡视计划。</p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -117,15 +123,6 @@ export default function App() {
         </p>
       )}
 
-      <div role="group" aria-label="巡视规则参考" className="mb-4 flex flex-wrap items-center gap-2">
-        <span className="mr-1 text-sm font-medium text-slate-600">规则参考</span>
-        {ruleTopics.map(({ id, title }) => (
-          <button key={id} type="button" className="secondary-button" aria-haspopup="dialog" onClick={() => setView(id)}>
-            {title}
-          </button>
-        ))}
-      </div>
-
       <section className="panel p-3 sm:p-6" aria-label="巡视月历">
         <MonthCalendar month={month} today={today} onMonthChange={setMonth} plansByDate={plansByDate}
           onSelect={date => { setSelectedDate(date); setView('day'); }} />
@@ -135,13 +132,27 @@ export default function App() {
         </p>
       </section>
 
+      <DataBackupActions onImported={date => {
+        setConfirmedCount(0);
+        if (date) setMonth(date.slice(0, 7));
+      }} />
+
+      <div role="group" aria-label="巡视规则参考" className="mt-4 flex flex-wrap items-center justify-end gap-2">
+        <span className="mr-1 text-sm font-medium text-slate-600">规则参考</span>
+        {ruleTopics.map(({ id, title }) => (
+          <button key={id} type="button" className="secondary-button" aria-haspopup="dialog" onClick={() => setView(id)}>
+            {title}
+          </button>
+        ))}
+      </div>
+
       {activeRule ? (
         <RulesModal topic={activeRule} onClose={closeView} />
       ) : view === 'export' ? (
         <ExportModal plans={plans} initialMonth={month} onClose={closeView} />
       ) : view && (
         <Modal title={dialogTitles[view]} wide={view === 'review' || view === 'day'} busy={saving} onClose={closeView}>
-          {view === 'day' && <DayPlanList date={selectedDate} plans={plansByDate.get(selectedDate) ?? []} />}
+          {view === 'day' && <DayPlanList key={selectedDate} date={selectedDate} plans={plansByDate.get(selectedDate) ?? []} onPlanUpdated={handlePlanUpdated} />}
           {view === 'intake' && <TaskForm initialValues={lastForm} initialMonth={month} onGenerate={handleGenerate} error={formError} />}
           {view === 'review' && (
             <DraftReview draft={draft} onSaveRow={handleRowSave} onBack={() => setView('intake')}
