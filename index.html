@@ -8,5 +8,12 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+    <script>
+      // 直接打开源码入口时转到离线构建。打包后模块已内联，不会再次跳转。
+      const sourceEntry = document.querySelector('script[type="module"][src="/src/main.jsx"]');
+      if (window.location.protocol === 'file:' && sourceEntry) {
+        window.location.replace(new URL('./dist/index.html', window.location.href).href);
+      }
+    </script>
   </body>
 </html>

@@ -26,9 +26,9 @@ export const restrictedEquipmentByStation = new Map([
 export function normalizeEquipmentText(text = '') {
   return (text ?? '')
     .normalize('NFKC')
-    .toUpperCase()
     .replace(/\s+/gu, '')
     .replace(/千伏/gu, 'KV')
+    .toUpperCase()
     .replace(/(\d+)号/gu, '#$1');
 }
 
