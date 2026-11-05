@@ -6,6 +6,7 @@ import { todayDate } from './features/calendar/dates.js';
 import TaskForm from './features/intake/TaskForm.jsx';
 import DraftReview from './features/review/DraftReview.jsx';
 import RulesModal, { ruleTopics } from './features/rules/RulesModal.jsx';
+import ExportModal from './features/export/ExportModal.jsx';
 import { generateSchedule } from './services/ScheduleGenerator.mjs';
 import { savePlans, watchPlans } from './storage/planRepository.js';
 
@@ -103,7 +104,10 @@ export default function App() {
           <h1 className="text-2xl font-semibold tracking-tight sm:text-4xl">每日巡视排班</h1>
           <p className="mt-2 text-sm text-slate-600">按日查看已确认的特殊巡视计划。</p>
         </div>
-        <button className="primary-button" type="button" onClick={openIntake}>特殊巡视安排</button>
+        <div className="flex flex-wrap gap-2">
+          <button className="primary-button" type="button" aria-haspopup="dialog" onClick={() => setView('export')}>导出巡视安排</button>
+          <button className="primary-button" type="button" onClick={openIntake}>特殊巡视安排</button>
+        </div>
       </header>
 
       {readError && <p role="alert" className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800">{readError}</p>}
@@ -133,8 +137,10 @@ export default function App() {
 
       {activeRule ? (
         <RulesModal topic={activeRule} onClose={closeView} />
+      ) : view === 'export' ? (
+        <ExportModal plans={plans} initialMonth={month} onClose={closeView} />
       ) : view && (
-        <Modal title={dialogTitles[view]} wide={view === 'review'} busy={saving} onClose={closeView}>
+        <Modal title={dialogTitles[view]} wide={view === 'review' || view === 'day'} busy={saving} onClose={closeView}>
           {view === 'day' && <DayPlanList date={selectedDate} plans={plansByDate.get(selectedDate) ?? []} />}
           {view === 'intake' && <TaskForm initialValues={lastForm} initialMonth={month} onGenerate={handleGenerate} error={formError} />}
           {view === 'review' && (

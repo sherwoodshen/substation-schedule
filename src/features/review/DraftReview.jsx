@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { stations } from '../../data/stations.mjs';
 import { canUseRobotForSpecial } from '../../services/ScheduleGenerator.mjs';
+import { formatTaskName } from '../../services/taskName.mjs';
 
 const stationByName = new Map(stations.map(station => [station.name, station]));
 const columns = ['日期', '保单号', '变电站', '保电设备', '巡视方式', '巡视次数', '测温次数', '操作'];
@@ -9,6 +10,7 @@ export default function DraftReview({ draft, onSaveRow, onBack, onConfirm, savin
   const [edit, setEdit] = useState(null);
   const [error, setError] = useState('');
   const firstRow = draft[0];
+  const taskName = firstRow ? formatTaskName(firstRow) : '';
 
   function startEdit(row, index) {
     setEdit({
@@ -38,14 +40,12 @@ export default function DraftReview({ draft, onSaveRow, onBack, onConfirm, savin
   return (
     <section aria-label="草稿核验">
       <div className="flex flex-wrap items-start justify-between gap-3 p-4 sm:px-6">
-        <div>
-          {firstRow && (
-            <p className="mb-1 text-sm font-semibold tabular-nums text-slate-900">
-              {firstRow.taskType} {firstRow.level}级 · 首巡 <time dateTime={firstRow.date}>{firstRow.date}</time>
-              {firstRow.isPreStart && '（T−1 人工 1 巡 1 测）'}
+        <div className="min-w-0 flex-1">
+          {taskName && (
+            <p className="inline-block max-w-full rounded-xl bg-teal-50 px-3 py-2 text-lg leading-relaxed font-semibold wrap-break-word text-teal-950">
+              {taskName}
             </p>
           )}
-          <p className="text-sm text-slate-600">逐行核对本站设备、巡视方式和测温次数。机器巡视测温为 0 次。</p>
           <p className="mt-1 text-xs text-slate-500 sm:hidden">表格可横向滑动查看。</p>
         </div>
         <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-medium tabular-nums">{draft.length} 条计划</span>

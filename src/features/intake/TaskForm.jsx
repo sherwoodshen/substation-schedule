@@ -52,7 +52,7 @@ export default function TaskForm({ initialValues = emptyForm, initialMonth, onGe
                 <label key={level} className="choice">
                   <input type="radio" name="level" value={level} className="accent-teal-700"
                     checked={form.level === level} onChange={() => setField('level', level)} />
-                  {level}级
+                  {form.taskType === '保电' ? (level === 1 ? '一级' : '二级') : `${level}级`}
                 </label>
               ))}
             </div>
