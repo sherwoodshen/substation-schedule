@@ -3,17 +3,20 @@ import Dexie from 'dexie';
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import DataBackupActions from '../src/features/backup/DataBackupActions.jsx';
-import { getAllPlans, importPlans, savePlans } from '../src/storage/planRepository.js';
+import { getAllPlans as getStoredPlans, importPlans, savePlans } from '../src/storage/planRepository.js';
 import { readBackupFile } from '../src/services/backupData.mjs';
 
 const fixtureDb = new Dexie('substation-schedule');
-fixtureDb.version(1).stores({ plans: '++id,date' });
+fixtureDb.version(2).stores({ plans: '++id,date,taskId', tasks: 'taskId,createdAt,updatedAt' });
 const plan = (id, noticeNumber = `任务${id}`) => ({
   id, date: '2026-11-05', stationName: '宁海路', voltage: '220kV',
   taskType: '保电', level: 2, noticeNumber, equipment: '宁海路变1号主变',
   method: 'manual', inspectionCount: 1, temperatureCount: 1, isPreStart: false,
 });
-const withoutIds = rows => rows.map(({ id, ...row }) => row);
+// 历史用例比较原有业务字段；任务外键在 TaskRepository 用例中独立校验。
+const businessRows = rows => rows.map(({ taskId, ...row }) => row);
+const withoutIds = rows => businessRows(rows).map(({ id, ...row }) => row);
+const getAllPlans = async () => businessRows(await getStoredPlans());
 let readerText;
 let readerEvent;
 let readAsText;
@@ -23,6 +26,7 @@ let downloads;
 
 beforeEach(async () => {
   await fixtureDb.plans.clear();
+  await fixtureDb.tasks.clear();
   readerText = '';
   readerEvent = 'load';
   downloads = [];
@@ -96,7 +100,11 @@ describe('Export：真实仓储到浏览器下载', () => {
     const [blob] = createObjectURL.mock.calls[0];
     expect(blob.type).toBe('application/json;charset=utf-8');
     const text = await blob.text();
-    expect(JSON.parse(text)).toEqual(records);
+    const backup = JSON.parse(text);
+    expect(backup.version).toBe(2);
+    expect(backup.tasks).toHaveLength(2);
+    expect(businessRows(backup.plans)).toEqual(records);
+    expect(backup.plans.every(row => backup.tasks.some(task => task.taskId === row.taskId))).toBe(true);
     expect(downloads).toHaveLength(1);
     expect(downloads[0].href).toBe('blob:sync-backup');
     expect(document.querySelector('a[download]')).toBeNull();

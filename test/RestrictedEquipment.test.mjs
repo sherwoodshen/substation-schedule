@@ -86,12 +86,12 @@ test('三站未命中清单时仍执行 T−1 人工和第14天强制人工', ()
 
 test('从本站拆分文本匹配清单，命中后按基础频次测温', () => {
   const rows = generateSchedule({
-    taskType: '保电', level: 2, startDate: '2026-11-06', endDate: '2026-11-06',
+    taskType: '保电', level: 2, startDate: '2026-11-05', endDate: '2026-11-06',
     stationNames: ['新街口', '云南路', '萨家湾'],
     equipmentText: '新街口变110kV正母线；云南路变摩云796；萨家湾变110千伏Ⅱ段母线',
   });
 
-  assert.deepEqual(rows.map(row => [row.stationName, row.method, row.inspectionCount, row.temperatureCount]), [
+  assert.deepEqual(rows.filter(row => row.date === '2026-11-06').map(row => [row.stationName, row.method, row.inspectionCount, row.temperatureCount]), [
     ['新街口', 'robot', 1, 0],
     ['云南路', 'manual', 1, 1],
     ['萨家湾', 'manual', 1, 1],

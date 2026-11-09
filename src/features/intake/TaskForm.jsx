@@ -2,13 +2,15 @@ import { useState } from 'react';
 import { extractStations } from '../../services/extractStations.mjs';
 import DateRangePicker from './DateRangePicker.jsx';
 
-const levelsByType = { 保电: [1, 2], 风险预警: [5, 6, 7] };
+const levelsByType = { 保电: [1, 2], 风险预警: [5, 6, 7], 自定义: [] };
 const emptyForm = {
   taskType: '保电', level: 1, noticeNumber: '', startDate: '', endDate: '', equipmentText: '',
+  projectName: '', inspectionDate: '', inspectionCount: 1, temperatureCount: 0,
 };
 
-export default function TaskForm({ initialValues = emptyForm, initialMonth, onGenerate, error }) {
-  const [form, setForm] = useState(initialValues);
+export default function TaskForm({ initialValues = emptyForm, initialMonth, onGenerate, error, editing }) {
+  // TODO: 后续考虑在此处接入真实天气 API 提示
+  const [form, setForm] = useState(() => ({ ...emptyForm, ...initialValues }));
   const matchedStations = extractStations(form.equipmentText);
 
   function setField(field, value) {
@@ -21,8 +23,8 @@ export default function TaskForm({ initialValues = emptyForm, initialMonth, onGe
     onGenerate({
       ...form,
       taskType: selection.get('taskType'),
-      level: Number(selection.get('level')),
-      noticeNumber: form.noticeNumber.trim(),
+      level: form.taskType === '自定义' ? null : Number(selection.get('level')),
+      noticeNumber: form.taskType === '自定义' ? '' : form.noticeNumber.trim(),
       equipmentText: form.equipmentText.trim(),
       stationNames: matchedStations.map(station => station.name),
     });
@@ -31,7 +33,7 @@ export default function TaskForm({ initialValues = emptyForm, initialMonth, onGe
   return (
     <form onSubmit={handleSubmit}>
       <div className="space-y-5 p-4 sm:p-6">
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className={`grid gap-4 ${form.taskType === '自定义' ? '' : 'sm:grid-cols-2'}`}>
           <fieldset>
             <legend className="field-label">任务类型</legend>
             <div className="mt-2 flex flex-wrap gap-2">
@@ -45,7 +47,13 @@ export default function TaskForm({ initialValues = emptyForm, initialMonth, onGe
               ))}
             </div>
           </fieldset>
-          <fieldset>
+          {form.taskType === '自定义' ? (
+            <label className="grid content-start gap-2">
+              <span className="field-label">项目名称</span>
+              <input required className="control" value={form.projectName} placeholder="填写本次自定义排班名称"
+                onChange={event => setField('projectName', event.target.value)} />
+            </label>
+          ) : <fieldset>
             <legend className="field-label">{form.taskType === '保电' ? '保电级别' : '预警级别'}</legend>
             <div className="mt-2 flex flex-wrap gap-2">
               {levelsByType[form.taskType].map(level => (
@@ -56,18 +64,43 @@ export default function TaskForm({ initialValues = emptyForm, initialMonth, onGe
                 </label>
               ))}
             </div>
-          </fieldset>
+          </fieldset>}
         </div>
 
-        <DateRangePicker startDate={form.startDate} endDate={form.endDate}
+        {form.taskType === '自定义' ? (
+          <>
+            <label className="grid gap-2">
+              <span className="field-label">巡视日期</span>
+              <input type="date" required className="control w-full" value={form.inspectionDate}
+                onChange={event => setField('inspectionDate', event.target.value)} />
+            </label>
+            <label className="grid gap-2">
+              <span className="field-label">巡视次数</span>
+              <select className="control" value={form.inspectionCount}
+                onChange={event => setField('inspectionCount', Number(event.target.value))}>
+                {[1, 2, 3].map(count => <option key={count} value={count}>{count}</option>)}
+              </select>
+            </label>
+            <label className="grid gap-2">
+              <span className="field-label">测温次数</span>
+              <select className="control" value={form.temperatureCount}
+                onChange={event => setField('temperatureCount', Number(event.target.value))}>
+                {[0, 1, 2, 3].map(count => <option key={count} value={count}>{count}</option>)}
+              </select>
+            </label>
+          </>
+        ) : <DateRangePicker startDate={form.startDate} endDate={form.endDate}
           initialMonth={form.startDate.slice(0, 7) || initialMonth}
-          onChange={(startDate, endDate) => setForm(current => ({ ...current, startDate, endDate }))} />
+          onChange={(startDate, endDate) => setForm(current => ({ ...current, startDate, endDate }))} />}
 
-        <label className="grid gap-2">
+        {initialValues.legacy && <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">此任务由历史明细归档，表单日期和设备由已有记录回填。保存后将按当前参数重新排班，请核对。</p>}
+        {initialValues.legacyMultiDate && <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">此任务为旧版多日自定义任务，已回填首日配置。重新保存后将替换原任务的全部明细，仅保留本次选择的单日安排。</p>}
+
+        {form.taskType !== '自定义' && <label className="grid gap-2">
           <span className="field-label">通知单号 / 事件名称 <span className="font-normal text-slate-500">（选填）</span></span>
           <input className="control" placeholder="例如 BD-001 或重大活动保电" value={form.noticeNumber}
             onChange={event => setField('noticeNumber', event.target.value)} />
-        </label>
+        </label>}
         <div>
           <label className="grid gap-2">
             <span className="field-label">保电设备</span>
@@ -96,7 +129,7 @@ export default function TaskForm({ initialValues = emptyForm, initialMonth, onGe
       </div>
 
       <div className="panel-footer justify-end">
-        <button className="primary-button" type="submit">生成排班草稿</button>
+        <button className="primary-button" type="submit">{editing ? '重新生成排班草稿' : '生成排班草稿'}</button>
       </div>
     </form>
   );

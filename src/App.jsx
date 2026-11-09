@@ -8,8 +8,10 @@ import DraftReview from './features/review/DraftReview.jsx';
 import RulesModal, { ruleTopics } from './features/rules/RulesModal.jsx';
 import ExportModal from './features/export/ExportModal.jsx';
 import DataBackupActions from './features/backup/DataBackupActions.jsx';
+import TaskHistoryModal from './features/tasks/TaskHistoryModal.jsx';
 import { generateSchedule } from './services/ScheduleGenerator.mjs';
-import { savePlans, watchPlans } from './storage/planRepository.js';
+import { saveTask, watchPlans, watchTasks } from './storage/planRepository.js';
+import { normalizeTaskForm, taskEditValues } from './services/taskModel.mjs';
 
 const dialogTitles = {
   intake: '特殊巡视安排',
@@ -24,6 +26,8 @@ export default function App() {
   const [selectedDate, setSelectedDate] = useState('');
   const [plans, setPlans] = useState([]);
   const [draft, setDraft] = useState([]);
+  const [tasks, setTasks] = useState([]);
+  const [editingTask, setEditingTask] = useState(null);
   const [lastForm, setLastForm] = useState(undefined);
   const [formError, setFormError] = useState('');
   const [readError, setReadError] = useState('');
@@ -37,7 +41,11 @@ export default function App() {
       next: setPlans,
       error: () => setReadError('无法读取本地计划，请确认当前浏览器允许使用 IndexedDB。'),
     });
-    return () => subscription.unsubscribe();
+    const taskSubscription = watchTasks({
+      next: setTasks,
+      error: () => setReadError('无法读取本地任务记录，请重试。'),
+    });
+    return () => { subscription.unsubscribe(); taskSubscription.unsubscribe(); };
   }, []);
 
   const plansByDate = useMemo(() => {
@@ -50,10 +58,19 @@ export default function App() {
   }, [plans]);
 
   function openIntake() {
+    setEditingTask(null);
     setLastForm(undefined);
     setFormError('');
     setSaveError('');
     setConfirmedCount(0);
+    setView('intake');
+  }
+
+  function editTask(task) {
+    setEditingTask(task);
+    setLastForm(taskEditValues(task, plans.filter(row => row.taskId === task.taskId)));
+    setFormError('');
+    setSaveError('');
     setView('intake');
   }
 
@@ -64,10 +81,9 @@ export default function App() {
   function handleGenerate(form) {
     setFormError('');
     try {
-      if (!form.startDate || !form.endDate) throw new Error('请选择完整的起止日期。');
-      if (!form.stationNames.length) throw new Error('请在保电设备文本中填写至少一个台账站名。');
-      const rows = generateSchedule(form);
-      setLastForm(form);
+      const normalized = normalizeTaskForm(form);
+      const rows = generateSchedule(normalized);
+      setLastForm(normalized);
       setDraft(rows);
       setSaveError('');
       setView('review');
@@ -85,18 +101,25 @@ export default function App() {
     setConfirmedCount(0);
   }
 
+  function handleTaskUpdated(taskId) {
+    setTasks(current => current.filter(task => task.taskId !== taskId));
+    setPlans(current => current.filter(row => row.taskId !== taskId));
+    setConfirmedCount(0);
+  }
+
   async function handleConfirm() {
     if (saving) return;
     setSaving(true);
     setSaveError('');
     try {
-      await savePlans(draft);
+      await saveTask(lastForm, draft, { taskId: editingTask?.taskId, expectedRevision: editingTask?.revision });
       setConfirmedCount(draft.length);
       setMonth(lastForm.startDate.slice(0, 7));
       setDraft([]);
+      setEditingTask(null);
       setView(null);
-    } catch {
-      setSaveError('保存失败，草稿仍可编辑。请确认浏览器允许本地存储后重试。');
+    } catch (error) {
+      setSaveError(error instanceof RangeError ? error.message : '保存失败，草稿仍可编辑。请确认浏览器允许本地存储后重试。');
     } finally {
       setSaving(false);
     }
@@ -111,6 +134,7 @@ export default function App() {
           <p className="mt-2 text-sm text-slate-600">按日查看已确认的特殊巡视计划。</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <button className="secondary-button" type="button" aria-haspopup="dialog" onClick={() => setView('history')}>排班任务记录</button>
           <button className="primary-button" type="button" aria-haspopup="dialog" onClick={() => setView('export')}>导出巡视安排</button>
           <button className="primary-button" type="button" onClick={openIntake}>特殊巡视安排</button>
         </div>
@@ -150,13 +174,15 @@ export default function App() {
         <RulesModal topic={activeRule} onClose={closeView} />
       ) : view === 'export' ? (
         <ExportModal plans={plans} initialMonth={month} onClose={closeView} />
+      ) : view === 'history' ? (
+        <TaskHistoryModal tasks={tasks} plans={plans} onClose={closeView} onEdit={editTask} onPlanUpdated={handlePlanUpdated} onTaskUpdated={handleTaskUpdated} />
       ) : view && (
         <Modal title={dialogTitles[view]} wide={view === 'review' || view === 'day'} busy={saving} onClose={closeView}>
           {view === 'day' && <DayPlanList key={selectedDate} date={selectedDate} plans={plansByDate.get(selectedDate) ?? []} onPlanUpdated={handlePlanUpdated} />}
-          {view === 'intake' && <TaskForm initialValues={lastForm} initialMonth={month} onGenerate={handleGenerate} error={formError} />}
+          {view === 'intake' && <TaskForm key={editingTask?.taskId ?? 'new'} initialValues={lastForm} initialMonth={month} onGenerate={handleGenerate} error={formError} editing={Boolean(editingTask)} />}
           {view === 'review' && (
             <DraftReview draft={draft} onSaveRow={handleRowSave} onBack={() => setView('intake')}
-              onConfirm={handleConfirm} saving={saving} saveError={saveError} />
+              onConfirm={handleConfirm} saving={saving} saveError={saveError} editing={Boolean(editingTask)} />
           )}
         </Modal>
       )}

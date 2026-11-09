@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import Modal from '../../components/Modal.jsx';
-import { backupFileName, readBackupFile } from '../../services/backupData.mjs';
-import { getAllPlans, importPlans } from '../../storage/planRepository.js';
+import { backupFileName, readSystemBackupFile } from '../../services/backupData.mjs';
+import { getSystemBackup, importPlans } from '../../storage/planRepository.js';
 
 export default function DataBackupActions({ onImported }) {
   const input = useRef(null);
@@ -16,8 +16,8 @@ export default function DataBackupActions({ onImported }) {
     setError('');
     setMessage('');
     try {
-      const records = await getAllPlans();
-      const blob = new Blob([JSON.stringify(records, null, 2)], { type: 'application/json;charset=utf-8' });
+      const data = await getSystemBackup();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       try {
@@ -29,7 +29,7 @@ export default function DataBackupActions({ onImported }) {
         anchor.remove();
         setTimeout(() => URL.revokeObjectURL(url), 1000);
       }
-      setMessage(`已生成 ${records.length} 条排班记录的 JSON 备份，请在浏览器下载中查看。`);
+      setMessage(`已生成 ${data.plans.length} 条排班记录及 ${data.tasks.length} 个任务的 JSON 备份，请在浏览器下载中查看。`);
     } catch {
       setError('导出失败，请确认浏览器允许本地存储后重试。');
     } finally {
@@ -45,8 +45,8 @@ export default function DataBackupActions({ onImported }) {
     setError('');
     setMessage('');
     try {
-      const records = await readBackupFile(file);
-      setBackup({ name: file.name, records });
+      const data = await readSystemBackupFile(file);
+      setBackup({ name: file.name, ...data });
     } catch (error) {
       setError(error.message);
     } finally {
@@ -59,7 +59,7 @@ export default function DataBackupActions({ onImported }) {
     setBusy(true);
     setError('');
     try {
-      const result = await importPlans(backup.records, mode);
+      const result = await importPlans(backup.records, mode, backup.tasks);
       const firstDate = backup.records.map(row => row.date).sort()[0];
       setMessage(mode === 'replace'
         ? `覆盖完成，当前共有 ${result.total} 条排班记录。`
@@ -91,7 +91,7 @@ export default function DataBackupActions({ onImported }) {
             <p className="wrap-break-word text-slate-600">{backup.name}</p>
             <p className="text-base font-semibold text-slate-950">检测到备份文件中包含 {backup.records.length} 条排班记录。请选择导入方式：</p>
             <p className="rounded-xl bg-rose-50 p-3 text-rose-900">覆盖当前数据将清空本机已有排班，并完整使用备份文件中的记录。</p>
-            <p className="rounded-xl bg-slate-50 p-3 text-slate-700">合并新增数据按日期、站点、任务及设备去重，已有记录保留本机内容。不同任务可在同一天、同一站点同时保留。</p>
+            <p className="rounded-xl bg-slate-50 p-3 text-slate-700">新版备份按任务标识整组导入，已有任务保留本机版本。旧版备份按日期、站点、任务及设备去重并归档。同日同站的不同任务分别保留。</p>
             {error && <p role="alert" className="text-red-800">{error}</p>}
           </div>
           <div className="panel-footer justify-end">

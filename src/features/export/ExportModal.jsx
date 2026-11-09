@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { saveAs } from 'file-saver';
 import Modal from '../../components/Modal.jsx';
 import DateRangePicker from '../intake/DateRangePicker.jsx';
-import { createScheduleWorkbook, getPlansInDateRange } from '../../services/exportPlans.mjs';
+import { getPlansInDateRange } from '../../services/exportPlans.mjs';
+import { downloadSchedule } from '../../services/downloadSchedule.mjs';
 
 export default function ExportModal({ plans, initialMonth, onClose }) {
   const [range, setRange] = useState({ startDate: '', endDate: '' });
@@ -18,10 +18,7 @@ export default function ExportModal({ plans, initialMonth, onClose }) {
     setMessage('');
     setExporting(true);
     try {
-      const workbook = createScheduleWorkbook(plans, range);
-      const buffer = await workbook.xlsx.writeBuffer();
-      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-      saveAs(blob, `巡视安排_${range.startDate}_至_${range.endDate}.xlsx`);
+      await downloadSchedule(plans, range, `巡视安排_${range.startDate}_至_${range.endDate}.xlsx`);
       setMessage(`已生成 ${matchingCount} 条巡视安排的 Excel，请在浏览器下载中查看。`);
     } catch (error) {
       setError(error instanceof RangeError ? error.message : '导出失败，请重试。');

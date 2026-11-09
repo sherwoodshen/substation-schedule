@@ -5,7 +5,7 @@ export default defineConfig({
   plugins: [react()],
   test: {
     environment: 'jsdom',
-    include: ['test/**/*.test.jsx'],
+    include: ['test/**/*.test.{js,jsx}'],
     setupFiles: ['test/setupSync.js'],
     clearMocks: true,
   },

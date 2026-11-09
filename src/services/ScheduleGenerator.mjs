@@ -2,6 +2,7 @@ import { stations } from '../data/stations.mjs';
 import { restrictedEquipmentByStation } from '../data/restrictedEquipment.mjs';
 import { robotTempCapableEquipment } from '../data/robotTempCapable.mjs';
 import { splitEquipmentByStation } from './splitEquipmentByStation.mjs';
+import { normalizeTaskForm } from './taskModel.mjs';
 
 export { restrictedEquipmentByStation };
 
@@ -59,17 +60,35 @@ function parseDate(value, label) {
 export function generateSchedule(form, stationLedger = stations) {
   const {
     taskType, level, startDate, endDate, stationNames,
-    noticeNumber = '',
-  } = form;
-  const equipmentText = form.equipmentText ?? form.equipment ?? '';
+    noticeNumber, equipmentText, projectName, inspectionCount: customInspectionCount, temperatureCount: customTemperatureCount,
+  } = normalizeTaskForm(form);
+  const isCustom = taskType === '自定义';
 
   const isProtection = taskType === '保电' && [1, 2].includes(level);
   const isRisk = taskType === '风险预警' && [5, 6, 7].includes(level);
-  if (!isProtection && !isRisk) {
+  if (!isProtection && !isRisk && !isCustom) {
     throw new RangeError('任务类型与级别不匹配');
   }
   if (!Array.isArray(stationNames) || stationNames.length === 0) {
     throw new RangeError('请至少选择一个变电站');
+  }
+
+  const equipmentByStation = splitEquipmentByStation(equipmentText, stationLedger);
+  const stationByName = new Map(stationLedger.map(station => [station.name, station]));
+  const selectedStations = stationNames.map(name => {
+    const station = stationByName.get(name);
+    if (!station) throw new RangeError(`台账中没有变电站「${name}」`);
+    return { station, equipment: equipmentByStation.get(name) ?? equipmentText };
+  });
+
+  // 自定义是单日人工配置，不进入前置、频次、替代、测温豁免或长周期算法。
+  if (isCustom) {
+    return selectedStations.map(({ station, equipment }) => ({
+      date: startDate, noticeNumber, stationName: station.name, voltage: station.voltage,
+      taskType, level: null, projectName, method: 'manual',
+      inspectionCount: customInspectionCount, temperatureCount: customTemperatureCount,
+      equipment, isPreStart: false, isFirstDayManual: false,
+    }));
   }
 
   const start = parseDate(startDate, '起始日期');
@@ -84,18 +103,10 @@ export function generateSchedule(form, stationLedger = stations) {
 
   const isPeriodicRisk = isRisk && level !== 5;
   const baseCount = level === 1 || level === 5 ? 2 : 1;
-  const equipmentByStation = splitEquipmentByStation(equipmentText, stationLedger);
-  const stationByName = new Map(stationLedger.map(station => [station.name, station]));
-  const stationPlans = Array.from(new Set(stationNames), name => {
-    const station = stationByName.get(name);
-    if (!station) {
-      throw new RangeError(`台账中没有变电站「${name}」`);
-    }
-    const equipment = equipmentByStation.get(name) ?? equipmentText;
-
+  const stationPlans = selectedStations.map(({ station, equipment }) => {
     const intervalDays = isPeriodicRisk ? riskIntervals.get(station.voltage) : 1;
     if (intervalDays === undefined) {
-      throw new RangeError(`${name}（${station.voltage}）尚未配置风险预警${level}级巡视频次`);
+      throw new RangeError(`${station.name}（${station.voltage}）尚未配置风险预警${level}级巡视频次`);
     }
 
     return {
@@ -104,34 +115,33 @@ export function generateSchedule(form, stationLedger = stations) {
       intervalDays,
       canUseRobot: canUseRobotForSpecial(station, equipment),
       manualEveryDays: station.voltage === '220kV' ? 7 : 14,
-      consecutiveRobotDays: 0,
+      lastManualOffset: null,
     };
   });
 
   const draft = [];
-  const firstOffset = needsPreStart ? -1 : 0;
   const lastOffset = (end - start) / DAY_MS;
+  const firstOffset = needsPreStart ? -1 : 0;
   for (let offset = firstOffset; offset <= lastOffset; offset += 1) {
     const date = new Date(start + offset * DAY_MS).toISOString().slice(0, 10);
     const isPreStart = offset === -1;
+    // 周期风险预警即使已有T−1巡视，起始日仍须人工并重设熔断基准。
+    const firstDayManual = offset === 0 && (!needsPreStart || isPeriodicRisk);
 
     for (const plan of stationPlans) {
       const { station, equipment, intervalDays, canUseRobot, manualEveryDays } = plan;
       if (!isPreStart && offset % intervalDays !== 0) {
-        // 当天没有机器巡视，连续天数从下一次机器巡视重新计算。
-        plan.consecutiveRobotDays = 0;
+        // 空档日不生成任务，也不改变上次人工巡视的计时起点。
         continue;
       }
 
       let method = 'manual';
-      if (!isPreStart && canUseRobot) {
-        plan.consecutiveRobotDays += 1;
-        if (plan.consecutiveRobotDays === manualEveryDays) {
-          plan.consecutiveRobotDays = 0;
-        } else {
-          method = 'robot';
-        }
+      // offset 以 UTC 日历日计算；T−1、首日人工及后续人工均更新本站基准。
+      const daysSinceManual = plan.lastManualOffset === null ? Infinity : offset - plan.lastManualOffset;
+      if (!isPreStart && !firstDayManual && canUseRobot && daysSinceManual < manualEveryDays) {
+        method = 'robot';
       }
+      if (method === 'manual') plan.lastManualOffset = offset;
 
       const inspectionCount = isPreStart ? 1 : baseCount;
       draft.push({
@@ -146,6 +156,7 @@ export function generateSchedule(form, stationLedger = stations) {
         temperatureCount: method === 'manual' || canRobotTemp(station.name, equipment) ? inspectionCount : 0,
         equipment,
         isPreStart,
+        isFirstDayManual: firstDayManual,
       });
     }
   }

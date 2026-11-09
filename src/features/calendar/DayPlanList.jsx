@@ -29,26 +29,26 @@ export default function DayPlanList({ date, plans, onPlanUpdated }) {
   return (
     <div className="p-4 sm:p-6">
       <p className="mb-4 flex items-center justify-between gap-2 text-sm text-slate-600">
-        <time dateTime={date} className="font-semibold tabular-nums text-slate-900">{date}</time>
+        <span className="font-semibold tabular-nums text-slate-900">{date || '任务完整明细'}</span>
         <span aria-live="polite">{visiblePlans.length} 条计划</span>
       </p>
       {error && <p role="alert" className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
       <p className="mb-2 text-xs text-slate-500 sm:hidden">表格可左右滑动查看，计划较多时可在表内上下滚动。</p>
-      <div role="region" aria-label="当天巡视计划表格" tabIndex={0}
+      <div role="region" aria-label={date ? '当天巡视计划表格' : '任务完整巡视计划表格'} tabIndex={0}
         className="max-h-[min(60dvh,32rem)] overflow-auto rounded-xl border border-slate-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700">
         <table className="review-table w-full min-w-[60rem] text-left text-sm">
-          <caption className="sr-only">{date} 特殊巡视计划明细，共 {visiblePlans.length} 条</caption>
+          <caption className="sr-only">{date || '任务'} 特殊巡视计划明细，共 {visiblePlans.length} 条</caption>
           <thead className="sticky top-0 z-1 border-b border-slate-200 bg-slate-50 text-slate-600 shadow-[0_1px_0_var(--color-slate-200)]">
             <tr>{columns.map(column => <th key={column} scope="col" className="whitespace-nowrap font-medium">{column}</th>)}</tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {visiblePlans.length === 0 && (
-              <tr><td colSpan={7} className="text-center text-slate-600">当天暂无已确认的特殊巡视计划。</td></tr>
+              <tr><td colSpan={7} className="text-center text-slate-600">{date ? '当天暂无已确认的特殊巡视计划。' : '此任务暂无排班明细，可编辑后重新生成。'}</td></tr>
             )}
             {visiblePlans.map(row => (
               <tr key={row.id} className="hover:bg-slate-50/80">
                 <td className="whitespace-nowrap tabular-nums">
-                  <time dateTime={date}>{date}</time>
+                  <time dateTime={row.date}>{row.date}</time>
                   {row.isPreStart && <span className="ml-1.5 rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-900">T−1</span>}
                 </td>
                 <th scope="row" className="whitespace-nowrap font-medium text-slate-950">
@@ -62,7 +62,7 @@ export default function DayPlanList({ date, plans, onPlanUpdated }) {
                 <td className="whitespace-nowrap tabular-nums text-slate-700">测温 {row.temperatureCount} 次</td>
                 <td className="whitespace-nowrap">
                   <button type="button" disabled={deletingId !== null} onClick={() => handleDelete(row.id)}
-                    aria-label={`删除 ${date} ${row.stationName} ${formatTaskName(row)}`}
+                    aria-label={`删除 ${row.date} ${row.stationName} ${formatTaskName(row)}`}
                     className="rounded-md px-2 py-1.5 font-medium text-red-600 enabled:cursor-pointer enabled:hover:bg-red-50 enabled:hover:text-red-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700 disabled:cursor-not-allowed disabled:opacity-50">
                     {deletingId === row.id ? '删除中…' : '删除'}
                   </button>

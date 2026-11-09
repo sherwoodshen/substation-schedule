@@ -29,12 +29,12 @@ test('同站多段合并、重复段去重，并列站名共用后续设备说�
 
 test('设备拦截按本站文本判定，其他站的主变或 110kV 不影响本站', () => {
   const rows = generateSchedule({
-    taskType: '保电', level: 2, startDate: '2026-11-06', endDate: '2026-11-06',
+    taskType: '保电', level: 2, startDate: '2026-11-05', endDate: '2026-11-06',
     stationNames: ['新街口', '宁海路', '云南路'],
     equipmentText: '新街口10kV母线；宁海路主变；110千伏云南路变母线',
   });
 
-  assert.deepEqual(rows.map(row => [row.stationName, row.equipment, row.method, row.temperatureCount]), [
+  assert.deepEqual(rows.filter(row => row.date === '2026-11-06').map(row => [row.stationName, row.equipment, row.method, row.temperatureCount]), [
     ['新街口', '新街口10kV母线', 'robot', 0],
     ['宁海路', '宁海路主变', 'manual', 1],
     ['云南路', '110千伏云南路变母线', 'robot', 0],

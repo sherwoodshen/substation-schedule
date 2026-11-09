@@ -6,12 +6,13 @@ import { formatTaskName } from '../../services/taskName.mjs';
 const stationByName = new Map(stations.map(station => [station.name, station]));
 const columns = ['日期', '保单号', '变电站', '保电设备', '巡视方式', '巡视次数', '测温次数', '操作'];
 
-export default function DraftReview({ draft, onSaveRow, onBack, onConfirm, saving, saveError }) {
+export default function DraftReview({ draft, onSaveRow, onBack, onConfirm, saving, saveError, editing }) {
   const [edit, setEdit] = useState(null);
   const [error, setError] = useState('');
   const firstRow = draft[0];
   const taskName = firstRow ? formatTaskName(firstRow) : '';
   const editingRow = edit === null ? null : draft[edit.index];
+  const customEditing = editingRow?.taskType === '自定义';
   const robotTemperature = editingRow && canRobotTemp(editingRow.stationName, editingRow.equipment)
     ? editingRow.inspectionCount : 0;
 
@@ -19,7 +20,8 @@ export default function DraftReview({ draft, onSaveRow, onBack, onConfirm, savin
     setEdit({
       index,
       method: row.method,
-      manualTemperature: String(row.method === 'robot' ? row.inspectionCount : row.temperatureCount),
+      inspectionCount: String(row.inspectionCount),
+      manualTemperature: String(row.taskType !== '自定义' && row.method === 'robot' ? row.inspectionCount : row.temperatureCount),
     });
   }
 
@@ -29,14 +31,23 @@ export default function DraftReview({ draft, onSaveRow, onBack, onConfirm, savin
   }
 
   function saveEdit() {
-    const temperatureCount = edit.method === 'robot' ? robotTemperature : Number(edit.manualTemperature);
-    if (edit.method === 'manual' && (
+    if (edit.method === 'robot' && !canUseRobotForSpecial(stationByName.get(editingRow.stationName), editingRow.equipment)) {
+      setError('该站设备不具备机器巡视资格，请选择人工巡视。');
+      return;
+    }
+    const inspectionCount = Number(edit.inspectionCount);
+    if (customEditing && (edit.inspectionCount.trim() === '' || !Number.isSafeInteger(inspectionCount) || inspectionCount < 1)) {
+      setError('巡视次数请输入正整数。');
+      return;
+    }
+    const temperatureCount = !customEditing && edit.method === 'robot' ? robotTemperature : Number(edit.manualTemperature);
+    if ((customEditing || edit.method === 'manual') && (
       edit.manualTemperature.trim() === '' || !Number.isSafeInteger(temperatureCount) || temperatureCount < 0
     )) {
       setError('测温次数请输入 0 或正整数。');
       return;
     }
-    onSaveRow(edit.index, { method: edit.method, temperatureCount });
+    onSaveRow(edit.index, { method: edit.method, temperatureCount, ...(customEditing ? { inspectionCount } : {}) });
     closeEdit();
   }
 
@@ -68,6 +79,7 @@ export default function DraftReview({ draft, onSaveRow, onBack, onConfirm, savin
                   <td className="whitespace-nowrap tabular-nums">
                     <time dateTime={row.date}>{row.date}</time>
                     {row.isPreStart && <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-900">T−1</span>}
+                    {row.taskType !== '自定义' && row.isFirstDayManual && <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-900">首日</span>}
                   </td>
                   <td className="max-w-40 wrap-break-word">{row.noticeNumber || '—'}</td>
                   <th scope="row" className="whitespace-nowrap font-medium">{row.stationName}</th>
@@ -91,12 +103,21 @@ export default function DraftReview({ draft, onSaveRow, onBack, onConfirm, savin
                       </span>
                     )}
                   </td>
-                  <td className="tabular-nums">{row.inspectionCount}</td>
+                  <td className="tabular-nums">
+                    {editing && customEditing ? (
+                      <input className="control w-20" type="number" min="1" step="1" aria-label="巡视次数"
+                        aria-invalid={Boolean(error)} aria-describedby={error ? 'draft-edit-error' : undefined}
+                        value={edit.inspectionCount} onChange={event => {
+                          setEdit({ ...edit, inspectionCount: event.target.value });
+                          setError('');
+                        }} />
+                    ) : row.inspectionCount}
+                  </td>
                   <td className="tabular-nums">
                     {editing ? (
                       <input className="control w-20" type="number" min="0" step="1" aria-label="测温次数"
-                        aria-invalid={Boolean(error)} aria-describedby={error ? 'temperature-error' : undefined}
-                        disabled={edit.method === 'robot'} value={edit.method === 'robot' ? robotTemperature : edit.manualTemperature}
+                        aria-invalid={Boolean(error)} aria-describedby={error ? 'draft-edit-error' : undefined}
+                        disabled={!customEditing && edit.method === 'robot'} value={!customEditing && edit.method === 'robot' ? robotTemperature : edit.manualTemperature}
                         onChange={event => {
                           setEdit({ ...edit, manualTemperature: event.target.value });
                           setError('');
@@ -104,7 +125,7 @@ export default function DraftReview({ draft, onSaveRow, onBack, onConfirm, savin
                     ) : row.temperatureCount}
                   </td>
                   <td className="whitespace-nowrap">
-                    {row.isPreStart ? (
+                    {row.taskType !== '自定义' && (row.isPreStart || row.isFirstDayManual) ? (
                       <span className="text-xs text-slate-500">规则锁定</span>
                     ) : editing ? (
                       <div className="flex gap-1">
@@ -126,10 +147,10 @@ export default function DraftReview({ draft, onSaveRow, onBack, onConfirm, savin
       <div className="panel-footer justify-between">
         <button className="secondary-button" type="button" disabled={edit !== null || saving} onClick={onBack}>返回表单</button>
         <div className="flex flex-wrap items-center gap-3">
-          {error && <p id="temperature-error" role="alert" className="text-sm text-red-800">{error}</p>}
+          {error && <p id="draft-edit-error" role="alert" className="text-sm text-red-800">{error}</p>}
           {edit && !error && <p className="text-sm text-slate-600">请先保存或取消当前行的编辑。</p>}
           <button className="primary-button" type="button" disabled={edit !== null || draft.length === 0 || saving}
-            onClick={onConfirm}>{saving ? '正在保存…' : '确认无误并生效'}</button>
+            onClick={onConfirm}>{saving ? '正在保存…' : editing ? '确认修改并生效' : '确认无误并生效'}</button>
         </div>
         {saveError && <p role="alert" className="w-full text-sm text-red-800">{saveError}</p>}
       </div>

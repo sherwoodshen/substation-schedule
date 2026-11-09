@@ -6,12 +6,14 @@ function ReplacementRules() {
   return (
     <>
       <p className="font-semibold text-slate-950">机器（智巡）替代人工特巡规则</p>
+      <p className="text-sm text-slate-600">以下规则适用于保电、风险预警；自定义任务按表单手动配置执行。</p>
       <ol className="list-decimal space-y-4 pl-5 marker:font-semibold">
         <li>
           <h3 className="font-semibold text-slate-950">强制人工时间节点（一票否决）</h3>
           <ul className="mt-1 list-disc space-y-1 pl-5 marker:text-slate-500">
             <li>1级保电、各级风险预警开始的前 1 日（T-1日），强制要求人工特巡并测温，绝对不得替代（2级保电无需开展前置特巡）。</li>
-            <li>连续机器替代期间，220kV变电站每7天内、110kV及以下变电站每14天内，必须强制开展一次人工特巡并测温。</li>
+            <li>二级保电的首个巡视日必须人工巡视并正常测温，后续日期按设备条件安排机器替代。</li>
+            <li>机器替代期间，距本站上次人工巡视满 7 个自然日（220kV）或 14 个自然日（110kV及以下）后的首个排班日，强制人工特巡并测温；空档日不中断计时，人工后重新计时。</li>
           </ul>
         </li>
         <li>
@@ -64,6 +66,10 @@ function SpecialRules() {
           <li><strong>1级保电</strong> · 所有保电站，每日开展巡视 2 次、测温 2 次。</li>
           <li><strong>2级保电</strong> · 所有保电站，每日开展巡视 1 次、测温 1 次。</li>
         </ul>
+      </section>
+      <section>
+        <h3 className="font-semibold text-slate-950">自定义任务</h3>
+        <p className="mt-1">仅安排所选单日，初始为人工巡视，次数采用表单配置。核验时可逐行调整方式及次数，机器巡视须符合本站设备资格；不进行 T−1、周期或测温豁免计算。</p>
       </section>
     </>
   );
