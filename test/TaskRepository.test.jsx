@@ -1,5 +1,5 @@
 import Dexie from 'dexie';
-import { afterAll, afterEach, beforeAll, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, expect, it, vi } from 'vitest';
 import { generateSchedule } from '../src/services/ScheduleGenerator.mjs';
 import { taskEditValues } from '../src/services/taskModel.mjs';
 import { parseSystemBackupText } from '../src/services/backupData.mjs';
@@ -22,7 +22,7 @@ beforeAll(async () => {
   old.close();
   repository = await import('../src/storage/planRepository.js');
 });
-afterEach(async () => { await fixture.plans.clear(); await fixture.tasks.clear(); });
+afterEach(async () => { vi.unstubAllGlobals(); await fixture.plans.clear(); await fixture.tasks.clear(); });
 afterAll(() => fixture.close());
 
 it('v1 自动升级保留原始明细及主键，新增可编辑的历史任务表头', async () => {
@@ -60,6 +60,33 @@ it('写入失败会整体回滚表头和旧明细，过期编辑版本被拒绝'
   await expect(repository.saveTask(form, generateSchedule(form), { taskId: task.taskId, expectedRevision: task.revision }))
     .rejects.toThrow('该任务已被其他操作修改');
   expect(await repository.getSystemBackup()).toEqual(afterDelete);
+});
+
+it('桌面端只在事务提交后备份，新增、编辑、删除和导入都写入当前完整快照', async () => {
+  const save = vi.fn();
+  vi.stubGlobal('desktopBackup', { save });
+  const checkBackup = async callCount => {
+    expect(save).toHaveBeenCalledTimes(callCount);
+    expect(save).toHaveBeenLastCalledWith(JSON.stringify(await repository.getSystemBackup(), null, 2));
+  };
+
+  await repository.savePlans([original]);
+  await checkBackup(1);
+  const task = await repository.saveTask(form, generateSchedule(form));
+  await checkBackup(2);
+  const updated = await repository.saveTask(custom, generateSchedule(custom), { taskId: task.taskId, expectedRevision: 1 });
+  await checkBackup(3);
+  await expect(repository.saveTask(form, generateSchedule(form), { taskId: task.taskId, expectedRevision: 1 }))
+    .rejects.toThrow('该任务已被其他操作修改');
+  await checkBackup(3);
+  const [row] = await repository.getTaskPlans(updated.taskId);
+  await repository.deletePlanById(row.id);
+  await checkBackup(4);
+  await repository.deleteTaskById(updated.taskId);
+  await checkBackup(5);
+  await repository.importPlans([], 'replace');
+  await checkBackup(6);
+  expect(JSON.parse(save.mock.lastCall[0])).toMatchObject({ tasks: [], plans: [] });
 });
 
 it('新版备份往返保留自定义日期和任务关系，重复合并保留本机任务版本', async () => {

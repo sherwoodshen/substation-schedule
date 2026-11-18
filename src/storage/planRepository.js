@@ -43,9 +43,25 @@ export function getSystemBackup() {
   }));
 }
 
+let desktopBackupQueue = Promise.resolve();
+
+function writeSchedule(change) {
+  const transaction = db.transaction('rw', db.tasks, db.plans, change);
+  const bridge = globalThis.desktopBackup;
+  if (!bridge) return transaction;
+
+  return transaction.then(async result => {
+    desktopBackupQueue = desktopBackupQueue
+      .then(async () => bridge.save(JSON.stringify(await getSystemBackup(), null, 2)))
+      .catch(error => console.error('排班已保存，但自动备份失败：', error));
+    await desktopBackupQueue;
+    return result;
+  });
+}
+
 export function savePlans(rows) {
   const archived = archiveLegacyPlans(rows);
-  return db.transaction('rw', db.tasks, db.plans, async () => {
+  return writeSchedule(async () => {
     await db.tasks.bulkAdd(archived.tasks);
     return db.plans.bulkAdd(archived.plans);
   });
@@ -54,7 +70,7 @@ export function savePlans(rows) {
 export function saveTask(form, rows, { taskId, expectedRevision } = {}) {
   const incoming = validateBackupRecords(rows);
   if (!incoming.length) throw new RangeError('任务至少需要一条排班明细。');
-  return db.transaction('rw', db.tasks, db.plans, async () => {
+  return writeSchedule(async () => {
     const previous = taskId ? await db.tasks.get(taskId) : undefined;
     if (taskId && (!previous || previous.revision !== expectedRevision)) {
       throw new RangeError('该任务已被其他操作修改，请返回任务记录重新打开。');
@@ -69,7 +85,7 @@ export function saveTask(form, rows, { taskId, expectedRevision } = {}) {
 
 export function deletePlanById(id) {
   if (!Number.isSafeInteger(id) || id <= 0) throw new RangeError('排班记录 ID 无效。');
-  return db.transaction('rw', db.tasks, db.plans, async () => {
+  return writeSchedule(async () => {
     const row = await db.plans.get(id);
     await db.plans.delete(id);
     const task = row?.taskId ? await db.tasks.get(row.taskId) : undefined;
@@ -79,7 +95,7 @@ export function deletePlanById(id) {
 
 export function deleteTaskById(taskId) {
   if (typeof taskId !== 'string' || !taskId.trim()) throw new RangeError('排班任务 ID 无效。');
-  return db.transaction('rw', db.tasks, db.plans, async () => {
+  return writeSchedule(async () => {
     await db.plans.where('taskId').equals(taskId).delete();
     await db.tasks.delete(taskId);
   });
@@ -90,7 +106,7 @@ export function importPlans(records, mode, taskHeaders) {
   // 为导入记录重新分配本机主键，避免不同电脑的自增 id 相互冲突。
   const incoming = validateBackupRecords(records).map(({ id, ...row }) => row);
   const headers = taskHeaders === undefined ? undefined : validateTaskHeaders(taskHeaders, incoming);
-  return db.transaction('rw', db.tasks, db.plans, async () => {
+  return writeSchedule(async () => {
     if (mode === 'replace') {
       const imported = headers ? { tasks: headers, plans: incoming } : archiveLegacyPlans(incoming);
       await db.plans.clear();

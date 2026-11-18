@@ -3,12 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "main": "dist-electron/main/index.js",
   "scripts": {
     "test": "npm run test:unit && npm run test:sync",
     "test:unit": "node --test test/*.test.mjs",
     "test:sync": "vitest run --config vitest.config.js --configLoader native",
     "dev": "vite",
+    "dev:exe": "vite --config vite.desktop.config.js",
     "build": "vite build",
+    "build:exe": "vite build --config vite.desktop.config.js && electron-builder --win nsis --x64 --publish never",
+    "build:exe:ia32": "vite build --config vite.desktop.config.js && electron-builder --win nsis --ia32 --publish never --config.electronVersion=43.8.8",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -23,11 +27,29 @@
     "@testing-library/dom": "^10.4.2",
     "@testing-library/react": "^16.3.3",
     "@vitejs/plugin-react": "^5.1.0",
+    "electron": "^45.3.0",
+    "electron-builder": "^26.18.0",
     "fake-indexeddb": "^6.2.7",
     "jsdom": "^29.1.1",
     "tailwindcss": "^4.1.0",
     "vite": "^7.3.0",
+    "vite-plugin-electron": "^0.29.0",
     "vite-plugin-singlefile": "^2.3.0",
     "vitest": "^5.1.0"
+  },
+  "build": {
+    "appId": "cn.substation.schedule",
+    "productName": "变电站巡视计划",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist-desktop/**",
+      "dist-electron/**"
+    ],
+    "win": {
+      "target": "nsis",
+      "artifactName": "Substation-Schedule-Setup-${version}-${arch}.${ext}"
+    }
   }
 }
